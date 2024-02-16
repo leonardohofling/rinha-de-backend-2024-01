@@ -1,0 +1,6 @@
+@RinhaDeBackend.API_HostAddress = http://localhost:5179
+
+GET {{RinhaDeBackend.API_HostAddress}}/clientes/1/extrato
+Accept: application/json
+
+###
