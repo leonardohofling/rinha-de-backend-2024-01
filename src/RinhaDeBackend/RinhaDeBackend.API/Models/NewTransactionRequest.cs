@@ -1,4 +1,5 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using RinhaDeBackend.API.Validators;
+using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 
 namespace RinhaDeBackend.API.Models
@@ -12,6 +13,7 @@ namespace RinhaDeBackend.API.Models
 
         [JsonPropertyName("tipo")]
         [Required]
+        [TypeValidator]
         public string Type {  get; set; }
 
         [JsonPropertyName("descricao")]

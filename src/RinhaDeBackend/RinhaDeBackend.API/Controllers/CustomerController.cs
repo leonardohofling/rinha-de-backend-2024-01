@@ -33,9 +33,6 @@ namespace RinhaDeBackend.API.Controllers
             if (!ModelState.IsValid)
                 return UnprocessableEntity();
 
-            if (newTransactionRequest.Type != "c" && newTransactionRequest.Type != "d")
-                return UnprocessableEntity();
-
             var serviceResult = await _customerService.NewBankTransaction(id, newTransactionRequest);
             if (serviceResult.IsError)
                 return HandleError(serviceResult.ErrorCode);

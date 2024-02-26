@@ -4,11 +4,11 @@ using RinhaDeBackend.API.Controllers;
 
 namespace RinhaDeBackend.API.Data
 {
-    public sealed class DatabaseSession : IDatabaseSession
+    public sealed class ConnectionFactory : IConnectionFactory
     {
         private readonly NpgsqlDataSource _dataSource;
 
-        public DatabaseSession(IConfiguration configuration, ILogger<DatabaseSession> logger)
+        public ConnectionFactory(IConfiguration configuration, ILogger<ConnectionFactory> logger)
         {
             _dataSource = NpgsqlDataSource.Create(configuration.GetConnectionString("Default")!);
         }        

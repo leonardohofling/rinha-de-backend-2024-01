@@ -2,6 +2,7 @@
 using RinhaDeBackend.API.Data.Models;
 using RinhaDeBackend.API.Data.Repositories;
 using RinhaDeBackend.API.Models;
+using System.Collections.Generic;
 
 namespace RinhaDeBackend.API.Services
 {
@@ -9,17 +10,12 @@ namespace RinhaDeBackend.API.Services
     {
         private readonly ICustomerRepository _customerRepository;
         private readonly ITransactionRepository _transactionRepository;
-        private readonly ILockService _lockService;
-        private readonly IDatabaseSession _databaseSession;
         private readonly ILogger<CustomerService> _logger;
 
-        public CustomerService(ICustomerRepository customerRepository, ITransactionRepository transactionRepository, ILockService lockService,
-            IDatabaseSession databaseSession, ILogger<CustomerService> logger)
+        public CustomerService(ICustomerRepository customerRepository, ITransactionRepository transactionRepository, ILogger<CustomerService> logger)
         {
             _customerRepository = customerRepository;
             _transactionRepository = transactionRepository;
-            _lockService = lockService;
-            _databaseSession = databaseSession;
             _logger = logger;
         }
 
@@ -36,33 +32,19 @@ namespace RinhaDeBackend.API.Services
 
         public async Task<ServiceResult<NewTransactionResponse>> NewBankTransaction(int customerId, NewTransactionRequest request)
         {
-            bool lockAcquired = false;
-            await using var connection = _databaseSession.GetConnection();
-            try
-            {
+            if (!(await _customerRepository.CheckIfExists(customerId)))
+                return new ServiceResult<NewTransactionResponse>(ServiceErrorCodeEnum.NotFound);
 
-                if (!(lockAcquired = await _lockService.AcquireLockAsync(connection, (int)LockGroupEnum.Customer, customerId)))
-                    return new ServiceResult<NewTransactionResponse>(ServiceErrorCodeEnum.AlreadyLocked);
+            var tAmount = request.Type == "c" ? Math.Abs(request.Amount) : Math.Abs(request.Amount) * -1;
 
-                var customer = await _customerRepository.GetByIdAsync(customerId);
-                if (customer == null)
-                    return new ServiceResult<NewTransactionResponse>(ServiceErrorCodeEnum.NotFound);
+            (var balance, var limit) = await _customerRepository.UpdateBalance(customerId, tAmount);
+            if (balance == null || limit == null)
+                return new ServiceResult<NewTransactionResponse>(ServiceErrorCodeEnum.InsufficientLimit);
 
-                var tAmount = request.Type == "c" ? Math.Abs(request.Amount) : Math.Abs(request.Amount) * -1;
-                if (tAmount < 0 && tAmount + customer.Balance < -customer.Limit)
-                    return new ServiceResult<NewTransactionResponse>(ServiceErrorCodeEnum.InsufficientLimit);
+            var bankTransaction = new BankTransaction(customerId, tAmount, request.Type, request.Description, DateTime.UtcNow);
+            _ = await _transactionRepository.InsertAsync(bankTransaction);
 
-                var bankTransaction = new BankTransaction(customerId, tAmount, request.Type, request.Description, DateTime.UtcNow);
-                _ = await _transactionRepository.InsertAsync(bankTransaction);
-                customer.Balance = await _customerRepository.UpdateBalance(customerId, tAmount);
-
-                return new ServiceResult<NewTransactionResponse>(new NewTransactionResponse(customer.Limit, customer.Balance));
-            }
-            finally
-            {
-                if (lockAcquired)
-                    await _lockService.ReleaseLockAsync(connection, (int)LockGroupEnum.Customer, customerId);
-            }
+            return new ServiceResult<NewTransactionResponse>(new NewTransactionResponse(limit, balance));
         }
 
         private ServiceResult<BalanceDetails> Map(Customer customer, IEnumerable<BankTransaction> transactions)

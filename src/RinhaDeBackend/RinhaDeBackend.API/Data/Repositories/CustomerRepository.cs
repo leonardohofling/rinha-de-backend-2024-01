@@ -7,16 +7,16 @@ namespace RinhaDeBackend.API.Data.Repositories
 {
     public class CustomerRepository : ICustomerRepository
     {
-        private readonly IDatabaseSession _dataBaseSession;
+        private readonly IConnectionFactory _connectionFactory;
 
-        public CustomerRepository(IDatabaseSession databaseSession)
+        public CustomerRepository(IConnectionFactory connectionFactory)
         {
-            _dataBaseSession = databaseSession;
+            _connectionFactory = connectionFactory;
         }
 
-        public async Task<Customer> GetByIdAsync(int customerId)
+        public async Task<Customer?> GetByIdAsync(int customerId)
         {
-            await using var connection = _dataBaseSession.GetConnection();
+            using var connection = _connectionFactory.GetConnection();
 
             await using var command = new NpgsqlCommand("SELECT customer_name, customer_limit, customer_balance FROM customers where customer_id = $1");
             command.Parameters.Add(new NpgsqlParameter<int> { NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Integer, Value = customerId });
@@ -38,41 +38,45 @@ namespace RinhaDeBackend.API.Data.Repositories
             return null;
         }
 
-        public async Task<int> UpdateBalance(int customerId)
+        public async Task<bool> CheckIfExists(int customerId)
         {
-            await using var connection = _dataBaseSession.GetConnection();
+            using var connection = _connectionFactory.GetConnection();
 
-            await using var command = new NpgsqlCommand(
-                "UPDATE customers SET customer_balance = (SELECT SUM(transaction_amount) FROM transactions WHERE customer_id = $1) WHERE customer_id = $1 RETURNING customer_balance");
-
+            await using var command = new NpgsqlCommand("SELECT customer_id FROM customers where customer_id = $1");
             command.Parameters.Add(new NpgsqlParameter<int> { NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Integer, Value = customerId });
             command.Connection = connection;
+            await using var reader = await command.ExecuteReaderAsync();
 
-            var returningValue = await command.ExecuteScalarAsync();
-            if (returningValue != null)
-                return Convert.ToInt32(returningValue);
-
-
-            throw new InvalidOperationException("Error reading data from Database");
+            return await reader.ReadAsync();
         }
 
-        public async Task<int> UpdateBalance(int customerId, int transactionAmount)
+        public async Task<(int? balance, int? limit)> UpdateBalance(int customerId, int transactionAmount)
         {
-            await using var connection = _dataBaseSession.GetConnection();
+            using var connection = _connectionFactory.GetConnection();
 
             await using var command = new NpgsqlCommand(
-                "UPDATE customers SET customer_balance = customer_balance + $2 WHERE customer_id = $1 RETURNING customer_balance");
+                @"UPDATE customers
+                    SET 
+                        customer_balance = (customer_balance + $2) 
+                    WHERE 
+                        customer_id = $1 
+                        AND (($2 > 0) or ((customer_balance + $2) >= (customer_limit * -1))) 
+                    RETURNING customer_balance, customer_limit");
 
             command.Parameters.Add(new NpgsqlParameter<int> { NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Integer, Value = customerId });
             command.Parameters.Add(new NpgsqlParameter<int> { NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Integer, Value = transactionAmount });
             command.Connection = connection;
 
-            var returningValue = await command.ExecuteScalarAsync();
-            if (returningValue != null)
-                return Convert.ToInt32(returningValue);
+            await using var reader = await command.ExecuteReaderAsync();
+            if (await reader.ReadAsync())
+            {
+                var balance = reader.GetInt32("customer_balance");
+                var limit = reader.GetInt32("customer_limit");
 
+                return (balance, limit);
+            }
 
-            throw new InvalidOperationException("Error reading data from Database");
+            return (null, null);
         }
     }
 }

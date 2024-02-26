@@ -2,7 +2,7 @@
 
 namespace RinhaDeBackend.API.Data
 {
-    public interface IDatabaseSession : IDisposable
+    public interface IConnectionFactory : IDisposable
     {
         NpgsqlConnection GetConnection();
     }

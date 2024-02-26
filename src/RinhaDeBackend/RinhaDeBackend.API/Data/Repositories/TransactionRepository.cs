@@ -6,16 +6,17 @@ namespace RinhaDeBackend.API.Data.Repositories
 {
     public class TransactionRepository : ITransactionRepository
     {
-        private readonly IDatabaseSession _dataBaseSession;
+        private readonly IConnectionFactory _connectionFactory;
 
-        public TransactionRepository(IDatabaseSession databaseSession)
+        public TransactionRepository(IConnectionFactory connectionFactory)
         {
-            _dataBaseSession = databaseSession;
+            _connectionFactory = connectionFactory;
         }
 
         public async Task<IEnumerable<BankTransaction>> GetByCustomerIdAsync(int customerId, int limit = 1000)
         {
-            await using var connection = _dataBaseSession.GetConnection();
+            using var connection = _connectionFactory.GetConnection();
+
             await using var command = new NpgsqlCommand($"SELECT transaction_id, transaction_amount, transaction_type, transaction_description, created_at FROM transactions where customer_id = $1 ORDER BY transaction_id DESC LIMIT {limit}");
 
             command.Parameters.Add(new NpgsqlParameter<int> { NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Integer, Value = customerId });
@@ -43,7 +44,8 @@ namespace RinhaDeBackend.API.Data.Repositories
 
         public async Task<bool> InsertAsync(BankTransaction transaction)
         {
-            await using var connection = _dataBaseSession.GetConnection();
+            using var connection = _connectionFactory.GetConnection();
+
             await using var command = new NpgsqlCommand("INSERT INTO transactions (customer_id, transaction_amount, transaction_type, transaction_description) values($1, $2, $3, $4)");
             command.Connection = connection;
 

@@ -13,7 +13,7 @@ builder.Services.AddControllers()
         options.SuppressModelStateInvalidFilter = true
     );
 
-builder.Services.AddSingleton<IDatabaseSession, DatabaseSession>();
+builder.Services.AddSingleton<IConnectionFactory, ConnectionFactory>();
 
 builder.Services.AddSingleton<ICustomerRepository, CustomerRepository>();
 builder.Services.AddSingleton<ITransactionRepository, TransactionRepository>();
