@@ -13,9 +13,9 @@ namespace RinhaDeBackend.API.Data
             _dataSource = NpgsqlDataSource.Create(configuration.GetConnectionString("Default")!);
         }        
 
-        public NpgsqlConnection GetConnection()
+        public async Task<NpgsqlConnection> GetConnectionAsync()
         {
-            return _dataSource.OpenConnection();
+            return await _dataSource.OpenConnectionAsync();
         }
 
         public void Dispose()

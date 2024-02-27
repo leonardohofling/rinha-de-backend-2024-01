@@ -4,6 +4,6 @@ namespace RinhaDeBackend.API.Data
 {
     public interface IConnectionFactory : IDisposable
     {
-        NpgsqlConnection GetConnection();
+        Task<NpgsqlConnection> GetConnectionAsync();
     }
 }

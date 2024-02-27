@@ -1,8 +1,14 @@
-using Microsoft.AspNetCore.Mvc.Infrastructure;
-using Microsoft.AspNetCore.Mvc;
+#if DEBUG
+using Npgsql;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
+#endif
+
+using RinhaDeBackend.API;
 using RinhaDeBackend.API.Data;
 using RinhaDeBackend.API.Data.Repositories;
 using RinhaDeBackend.API.Services;
+using System.Diagnostics;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -22,6 +28,21 @@ builder.Services.AddSingleton<ILockService, LockService>();
 
 builder.Services.AddSingleton<ICustomerService, CustomerService>();
 
+builder.Services.AddSingleton(new DiagnosticsConfig());
+
+#if DEBUG
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(resource => resource
+        .AddService(serviceName: builder.Environment.ApplicationName))
+    .WithTracing(tracing => tracing
+        .AddSource(DiagnosticsConfig.SourceName)
+        .AddAspNetCoreInstrumentation()
+        .AddHttpClientInstrumentation()
+        .AddNpgsql()
+        .AddConsoleExporter()
+        .AddOtlpExporter());
+#endif
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -31,5 +52,9 @@ app.UseHttpsRedirection();
 app.UseAuthorization();
 
 app.MapControllers();
+
+#if DEBUG
+app.MapGet("/", () => $"Hello World! OpenTelemetry Trace: {Activity.Current?.Id}");
+#endif
 
 app.Run();

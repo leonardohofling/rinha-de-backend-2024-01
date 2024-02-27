@@ -2,7 +2,7 @@
 using RinhaDeBackend.API.Data.Models;
 using RinhaDeBackend.API.Data.Repositories;
 using RinhaDeBackend.API.Models;
-using System.Collections.Generic;
+using System.Diagnostics;
 
 namespace RinhaDeBackend.API.Services
 {
@@ -10,39 +10,53 @@ namespace RinhaDeBackend.API.Services
     {
         private readonly ICustomerRepository _customerRepository;
         private readonly ITransactionRepository _transactionRepository;
-        private readonly ILogger<CustomerService> _logger;
+        private readonly IConnectionFactory _connectionFactory;
+        private readonly DiagnosticsConfig _diagnosticsConfig;
 
-        public CustomerService(ICustomerRepository customerRepository, ITransactionRepository transactionRepository, ILogger<CustomerService> logger)
+        public CustomerService(ICustomerRepository customerRepository, ITransactionRepository transactionRepository, 
+            IConnectionFactory connectionFactory, DiagnosticsConfig diagnosticsConfig)
         {
             _customerRepository = customerRepository;
             _transactionRepository = transactionRepository;
-            _logger = logger;
+            _connectionFactory = connectionFactory;
+            _diagnosticsConfig = diagnosticsConfig;
         }
 
         public async Task<ServiceResult<BalanceDetails>> GetBalanceDetailsByCustomerId(int customerId)
         {
-            var customer = await _customerRepository.GetByIdAsync(customerId);
+#if DEBUG
+            using var activity = _diagnosticsConfig.Source.StartActivity("CustomerService.GetBalanceDetailsByCustomerId()");
+#endif
+            await using var connection = await _connectionFactory.GetConnectionAsync();
+
+            var customer = await _customerRepository.GetByIdAsync(customerId, connection);
             if (customer == null)
                 return new ServiceResult<BalanceDetails>(ServiceErrorCodeEnum.NotFound);
 
-            var transactions = await _transactionRepository.GetTransactionsByCustomerIdAsync(customerId, 10);
+            var transactions = await _transactionRepository.GetTransactionsByCustomerIdAsync(customerId, 10, connection);
 
             return Map(customer, transactions);
         }
 
         public async Task<ServiceResult<NewTransactionResponse>> NewBankTransaction(int customerId, NewTransactionRequest request)
         {
-            if (!(await _customerRepository.CheckIfExists(customerId)))
+#if DEBUG
+            using var activity = _diagnosticsConfig.Source.StartActivity("CustomerService.NewBankTransaction()", ActivityKind.Internal);
+#endif
+
+            await using var connection = await _connectionFactory.GetConnectionAsync();
+
+            if (!(await _customerRepository.CheckIfExistsAsync(customerId, connection)))
                 return new ServiceResult<NewTransactionResponse>(ServiceErrorCodeEnum.NotFound);
 
             var tAmount = request.Type == "c" ? Math.Abs(request.Amount) : Math.Abs(request.Amount) * -1;
 
-            (var balance, var limit) = await _customerRepository.UpdateBalance(customerId, tAmount);
+            (var balance, var limit) = await _customerRepository.UpdateBalanceAsync(customerId, tAmount, connection);
             if (balance == null || limit == null)
                 return new ServiceResult<NewTransactionResponse>(ServiceErrorCodeEnum.InsufficientLimit);
 
             var bankTransaction = new BankTransaction(customerId, tAmount, request.Type, request.Description, DateTime.UtcNow);
-            _ = await _transactionRepository.InsertAsync(bankTransaction);
+            _ = await _transactionRepository.InsertAsync(bankTransaction, connection);
 
             return new ServiceResult<NewTransactionResponse>(new NewTransactionResponse(limit, balance));
         }

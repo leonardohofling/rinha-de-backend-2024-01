@@ -10,16 +10,22 @@ namespace RinhaDeBackend.API.Controllers
     {
         private readonly ILogger<CustomerController> _logger;
         private readonly ICustomerService _customerService;
+        private readonly DiagnosticsConfig _diagnosticsConfig;
 
-        public CustomerController(ILogger<CustomerController> logger, ICustomerService customerService)
+        public CustomerController(ILogger<CustomerController> logger, ICustomerService customerService, DiagnosticsConfig diagnosticsConfig)
         {
             _logger = logger;
             _customerService = customerService;
+            _diagnosticsConfig = diagnosticsConfig;
         }
 
         [HttpGet("extrato")]
         public async Task<ActionResult<BalanceDetails>> GetBalance(int id)
         {
+#if DEBUG
+            using var activity = _diagnosticsConfig.Source.StartActivity("CustomerController.GetBalance()");
+#endif
+
             var serviceResult = await _customerService.GetBalanceDetailsByCustomerId(id);
             if (serviceResult.IsError)
                 return HandleError(serviceResult.ErrorCode);

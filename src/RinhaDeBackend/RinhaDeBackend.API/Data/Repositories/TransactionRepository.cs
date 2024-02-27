@@ -1,14 +1,15 @@
 ﻿using Npgsql;
 using RinhaDeBackend.API.Data.Models;
-using System.Collections.Generic;
 using System.Data;
-using System.Transactions;
 
 namespace RinhaDeBackend.API.Data.Repositories
 {
     public class TransactionRepository : ITransactionRepository
     {
         private readonly IConnectionFactory _connectionFactory;
+        private readonly DiagnosticsConfig _diagnosticsConfig;
+
+        #region SQL Commands
 
         private readonly NpgsqlCommand getTransactionsCommand =
             new NpgsqlCommand($"SELECT transaction_id, transaction_amount, transaction_type, transaction_description, created_at FROM transactions where customer_id = $1 ORDER BY transaction_id DESC LIMIT $2")
@@ -31,20 +32,31 @@ namespace RinhaDeBackend.API.Data.Repositories
                 }
             };
 
-        public TransactionRepository(IConnectionFactory connectionFactory)
+        #endregion
+
+        public TransactionRepository(IConnectionFactory connectionFactory, DiagnosticsConfig diagnosticsConfig)
         {
             _connectionFactory = connectionFactory;
+            _diagnosticsConfig = diagnosticsConfig;
         }
 
-        public async Task<IEnumerable<BankTransaction>> GetTransactionsByCustomerIdAsync(int customerId, int limit = 1000)
+        public async Task<IEnumerable<BankTransaction>> GetTransactionsByCustomerIdAsync(int customerId, int limit = 1000, IDbConnection? connection = null)
         {
+#if DEBUG
+            using var activity = _diagnosticsConfig.Source.StartActivity("TransactionRepository.GetTransactionsByCustomerIdAsync()");
+#endif
             await using var command = getTransactionsCommand.Clone();
 
             command.Parameters[0].Value = customerId;
             command.Parameters[1].Value = limit;
 
-            using var connection = _connectionFactory.GetConnection();
-            command.Connection = connection;
+            if (connection == null)
+            {
+                await using var newConnection = await _connectionFactory.GetConnectionAsync();
+                command.Connection = newConnection;
+            }
+            else
+                command.Connection = (NpgsqlConnection)connection;
 
             await using var reader = await command.ExecuteReaderAsync();
 
@@ -66,9 +78,11 @@ namespace RinhaDeBackend.API.Data.Repositories
             return transactions;
         }
 
-        public async Task<bool> InsertAsync(BankTransaction transaction)
+        public async Task<bool> InsertAsync(BankTransaction transaction, IDbConnection? connection = null)
         {
-
+#if DEBUG
+            using var activity = _diagnosticsConfig.Source.StartActivity("TransactionRepository.InsertAsync()");
+#endif
             await using var command = insertCommand.Clone();
 
             command.Parameters[0].Value = transaction.CustomerId;
@@ -76,8 +90,13 @@ namespace RinhaDeBackend.API.Data.Repositories
             command.Parameters[2].Value = transaction.Type;
             command.Parameters[3].Value = transaction.Description;
 
-            using var connection = _connectionFactory.GetConnection();
-            command.Connection = connection;
+            if (connection == null)
+            {
+                await using var newConnection = await _connectionFactory.GetConnectionAsync();
+                command.Connection = newConnection;
+            }
+            else
+                command.Connection = (NpgsqlConnection)connection;
 
             var rows = await command.ExecuteNonQueryAsync();
 
