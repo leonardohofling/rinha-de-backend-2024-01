@@ -1,13 +1,39 @@
 ﻿using Npgsql;
 using RinhaDeBackend.API.Data.Models;
 using System.Data;
-using System.Transactions;
 
 namespace RinhaDeBackend.API.Data.Repositories
 {
     public class CustomerRepository : ICustomerRepository
     {
         private readonly IConnectionFactory _connectionFactory;
+
+        private readonly NpgsqlCommand selectCommand =
+            new NpgsqlCommand("SELECT customer_name, customer_limit, customer_balance FROM customers where customer_id = $1")
+            {
+                Parameters = { new NpgsqlParameter<int> { NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Integer } }
+            };
+
+        private readonly NpgsqlCommand checkIfExistsCommand =
+            new NpgsqlCommand("SELECT customer_id FROM customers where customer_id = $1")
+            {
+                Parameters = { new NpgsqlParameter<int> { NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Integer } }
+            };
+
+        private readonly NpgsqlCommand updateBalanceCommand = new NpgsqlCommand(
+                @"UPDATE customers
+                    SET 
+                        customer_balance = (customer_balance + $2) 
+                    WHERE 
+                        customer_id = $1 
+                        AND (($2 > 0) or ((customer_balance + $2) >= (customer_limit * -1))) 
+                    RETURNING customer_balance, customer_limit")
+        {
+            Parameters = {
+                new NpgsqlParameter<int> { NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Integer },
+                new NpgsqlParameter<int> { NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Integer }
+            }
+        };
 
         public CustomerRepository(IConnectionFactory connectionFactory)
         {
@@ -16,10 +42,10 @@ namespace RinhaDeBackend.API.Data.Repositories
 
         public async Task<Customer?> GetByIdAsync(int customerId)
         {
-            using var connection = _connectionFactory.GetConnection();
+            await using var command = selectCommand.Clone();
+            command.Parameters[0].Value = customerId;
 
-            await using var command = new NpgsqlCommand("SELECT customer_name, customer_limit, customer_balance FROM customers where customer_id = $1");
-            command.Parameters.Add(new NpgsqlParameter<int> { NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Integer, Value = customerId });
+            using var connection = _connectionFactory.GetConnection();
             command.Connection = connection;
             await using var reader = await command.ExecuteReaderAsync();
             if (await reader.ReadAsync())
@@ -40,11 +66,12 @@ namespace RinhaDeBackend.API.Data.Repositories
 
         public async Task<bool> CheckIfExists(int customerId)
         {
-            using var connection = _connectionFactory.GetConnection();
+            await using var command = checkIfExistsCommand.Clone();
+            command.Parameters[0].Value = customerId;
 
-            await using var command = new NpgsqlCommand("SELECT customer_id FROM customers where customer_id = $1");
-            command.Parameters.Add(new NpgsqlParameter<int> { NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Integer, Value = customerId });
+            using var connection = _connectionFactory.GetConnection();
             command.Connection = connection;
+
             await using var reader = await command.ExecuteReaderAsync();
 
             return await reader.ReadAsync();
@@ -52,19 +79,12 @@ namespace RinhaDeBackend.API.Data.Repositories
 
         public async Task<(int? balance, int? limit)> UpdateBalance(int customerId, int transactionAmount)
         {
+            await using var command = updateBalanceCommand.Clone();
+
+            command.Parameters[0].Value = customerId;
+            command.Parameters[1].Value = transactionAmount;
+
             using var connection = _connectionFactory.GetConnection();
-
-            await using var command = new NpgsqlCommand(
-                @"UPDATE customers
-                    SET 
-                        customer_balance = (customer_balance + $2) 
-                    WHERE 
-                        customer_id = $1 
-                        AND (($2 > 0) or ((customer_balance + $2) >= (customer_limit * -1))) 
-                    RETURNING customer_balance, customer_limit");
-
-            command.Parameters.Add(new NpgsqlParameter<int> { NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Integer, Value = customerId });
-            command.Parameters.Add(new NpgsqlParameter<int> { NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Integer, Value = transactionAmount });
             command.Connection = connection;
 
             await using var reader = await command.ExecuteReaderAsync();

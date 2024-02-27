@@ -25,7 +25,7 @@ namespace RinhaDeBackend.API.Services
             if (customer == null)
                 return new ServiceResult<BalanceDetails>(ServiceErrorCodeEnum.NotFound);
 
-            var transactions = await _transactionRepository.GetByCustomerIdAsync(customerId, 10);
+            var transactions = await _transactionRepository.GetTransactionsByCustomerIdAsync(customerId, 10);
 
             return Map(customer, transactions);
         }
@@ -47,7 +47,7 @@ namespace RinhaDeBackend.API.Services
             return new ServiceResult<NewTransactionResponse>(new NewTransactionResponse(limit, balance));
         }
 
-        private ServiceResult<BalanceDetails> Map(Customer customer, IEnumerable<BankTransaction> transactions)
+        private static ServiceResult<BalanceDetails> Map(Customer customer, IEnumerable<BankTransaction> transactions)
         {
             return new ServiceResult<BalanceDetails>(new BalanceDetails(
                 new Balance(customer.Balance, customer.Limit, DateTime.UtcNow),
