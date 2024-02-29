@@ -22,7 +22,7 @@ namespace RinhaDeBackend.API.Services
             _diagnosticsConfig = diagnosticsConfig;
         }
 
-        public async Task<ServiceResult<BalanceDetails>> GetBalanceDetailsByCustomerId(int customerId)
+        public async Task<ServiceResult<BalanceDetails>> GetBalanceDetailsByCustomerIdAsync(int customerId)
         {
 #if DEBUG
             using var activity = _diagnosticsConfig.Source.StartActivity("CustomerService.GetBalanceDetailsByCustomerId()");
@@ -38,7 +38,7 @@ namespace RinhaDeBackend.API.Services
             return Map(customer, transactions);
         }
 
-        public async Task<ServiceResult<NewTransactionResponse>> NewBankTransaction(int customerId, NewTransactionRequest request)
+        public async Task<ServiceResult<NewTransactionResponse>> NewBankTransactionAsync(int customerId, NewTransactionRequest request)
         {
 #if DEBUG
             using var activity = _diagnosticsConfig.Source.StartActivity("CustomerService.NewBankTransaction()", ActivityKind.Internal);

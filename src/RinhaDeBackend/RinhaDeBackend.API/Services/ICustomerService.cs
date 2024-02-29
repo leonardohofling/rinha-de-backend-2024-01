@@ -4,7 +4,7 @@ namespace RinhaDeBackend.API.Services
 {
     public interface ICustomerService
     {
-        Task<ServiceResult<BalanceDetails>> GetBalanceDetailsByCustomerId(int customerId);
-        Task<ServiceResult<NewTransactionResponse>> NewBankTransaction(int customerId, NewTransactionRequest request);
+        Task<ServiceResult<BalanceDetails>> GetBalanceDetailsByCustomerIdAsync(int customerId);
+        Task<ServiceResult<NewTransactionResponse>> NewBankTransactionAsync(int customerId, NewTransactionRequest request);
     }
 }

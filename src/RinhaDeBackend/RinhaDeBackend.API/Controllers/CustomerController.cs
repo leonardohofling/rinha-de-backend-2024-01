@@ -26,7 +26,7 @@ namespace RinhaDeBackend.API.Controllers
             using var activity = _diagnosticsConfig.Source.StartActivity("CustomerController.GetBalance()");
 #endif
 
-            var serviceResult = await _customerService.GetBalanceDetailsByCustomerId(id);
+            var serviceResult = await _customerService.GetBalanceDetailsByCustomerIdAsync(id);
             if (serviceResult.IsError)
                 return HandleError(serviceResult.ErrorCode);
 
@@ -36,10 +36,14 @@ namespace RinhaDeBackend.API.Controllers
         [HttpPost("transacoes")]
         public async Task<ActionResult<NewTransactionResponse>> PostNewTransaction(int id, [FromBody] NewTransactionRequest newTransactionRequest)
         {
+#if DEBUG
+            using var activity = _diagnosticsConfig.Source.StartActivity("CustomerController.PostNewTransaction()");
+#endif
+
             if (!ModelState.IsValid)
                 return UnprocessableEntity();
 
-            var serviceResult = await _customerService.NewBankTransaction(id, newTransactionRequest);
+            var serviceResult = await _customerService.NewBankTransactionAsync(id, newTransactionRequest);
             if (serviceResult.IsError)
                 return HandleError(serviceResult.ErrorCode);
 
