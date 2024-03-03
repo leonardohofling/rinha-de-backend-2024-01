@@ -26,6 +26,10 @@ namespace RinhaDeBackend.API.Controllers
             using var activity = _diagnosticsConfig.Source.StartActivity("CustomerController.GetBalance()");
 #endif
 
+            //TODO: Remove
+            if (id < 1 || id > 5)
+                return NotFound();
+
             var serviceResult = await _customerService.GetBalanceDetailsByCustomerIdAsync(id);
             if (serviceResult.IsError)
                 return HandleError(serviceResult.ErrorCode);
@@ -42,6 +46,10 @@ namespace RinhaDeBackend.API.Controllers
 
             if (!ModelState.IsValid)
                 return UnprocessableEntity();
+
+            //TODO: Remove
+            if (id < 1 || id > 5)
+                return NotFound();
 
             var serviceResult = await _customerService.NewBankTransactionAsync(id, newTransactionRequest);
             if (serviceResult.IsError)

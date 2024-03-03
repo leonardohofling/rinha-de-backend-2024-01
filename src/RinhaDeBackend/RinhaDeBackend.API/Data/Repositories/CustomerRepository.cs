@@ -12,13 +12,13 @@ namespace RinhaDeBackend.API.Data.Repositories
         #region SQL Commands
 
         private readonly NpgsqlCommand selectCommand =
-            new NpgsqlCommand("SELECT customer_name, customer_limit, customer_balance FROM customers where customer_id = $1")
+            new("SELECT customer_name, customer_limit, customer_balance FROM customers where customer_id = $1")
             {
                 Parameters = { new NpgsqlParameter<int> { NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Integer } }
             };
 
         private readonly NpgsqlCommand checkIfExistsCommand =
-            new NpgsqlCommand("SELECT customer_id FROM customers where customer_id = $1")
+            new("SELECT customer_id FROM customers where customer_id = $1")
             {
                 Parameters = { new NpgsqlParameter<int> { NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Integer } }
             };
@@ -64,6 +64,7 @@ namespace RinhaDeBackend.API.Data.Repositories
                 command.Connection = (NpgsqlConnection)connection;
 
             await using var reader = await command.ExecuteReaderAsync();
+
             if (await reader.ReadAsync())
             {
                 var customer = new Customer
@@ -97,9 +98,8 @@ namespace RinhaDeBackend.API.Data.Repositories
             else
                 command.Connection = (NpgsqlConnection)connection;
 
-            await using var reader = await command.ExecuteReaderAsync();
-
-            return await reader.ReadAsync();
+            var resultObject = await command.ExecuteScalarAsync();
+            return resultObject != null;
         }
 
         public async Task<(int? balance, int? limit)> UpdateBalanceAsync(int customerId, int transactionAmount, IDbConnection? connection = null)

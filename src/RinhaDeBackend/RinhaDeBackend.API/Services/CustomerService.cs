@@ -13,7 +13,7 @@ namespace RinhaDeBackend.API.Services
         private readonly IConnectionFactory _connectionFactory;
         private readonly DiagnosticsConfig _diagnosticsConfig;
 
-        public CustomerService(ICustomerRepository customerRepository, ITransactionRepository transactionRepository, 
+        public CustomerService(ICustomerRepository customerRepository, ITransactionRepository transactionRepository,
             IConnectionFactory connectionFactory, DiagnosticsConfig diagnosticsConfig)
         {
             _customerRepository = customerRepository;
@@ -46,17 +46,17 @@ namespace RinhaDeBackend.API.Services
 
             await using var connection = await _connectionFactory.GetConnectionAsync();
 
-            if (!(await _customerRepository.CheckIfExistsAsync(customerId, connection)))
-                return new ServiceResult<NewTransactionResponse>(ServiceErrorCodeEnum.NotFound);
+            //TODO: Cache?
+            //if (!(await _customerRepository.CheckIfExistsAsync(customerId, connection)))
+            //    return new ServiceResult<NewTransactionResponse>(ServiceErrorCodeEnum.NotFound);
 
-            var tAmount = request.Type == "c" ? Math.Abs(request.Amount) : Math.Abs(request.Amount) * -1;
-
-            (var balance, var limit) = await _customerRepository.UpdateBalanceAsync(customerId, tAmount, connection);
+            (var balance, var limit) = await _customerRepository.UpdateBalanceAsync(customerId, request.GetAmountForBalance(), connection);
             if (balance == null || limit == null)
                 return new ServiceResult<NewTransactionResponse>(ServiceErrorCodeEnum.InsufficientLimit);
 
-            var bankTransaction = new BankTransaction(customerId, tAmount, request.Type, request.Description, DateTime.UtcNow);
-            _ = await _transactionRepository.InsertAsync(bankTransaction, connection);
+            var bankTransaction = new BankTransaction(customerId, request.GetAmountForBalance(), request.Type, request.Description, DateTime.UtcNow);
+            if (!(await _transactionRepository.InsertAsync(bankTransaction, connection)))
+                return new ServiceResult<NewTransactionResponse>(ServiceErrorCodeEnum.GenericFailure);
 
             return new ServiceResult<NewTransactionResponse>(new NewTransactionResponse(limit, balance));
         }

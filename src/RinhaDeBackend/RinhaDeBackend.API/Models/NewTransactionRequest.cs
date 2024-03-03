@@ -14,11 +14,16 @@ namespace RinhaDeBackend.API.Models
         [JsonPropertyName("tipo")]
         [Required]
         [TypeValidator]
-        public string Type {  get; set; }
+        public string Type { get; set; }
 
         [JsonPropertyName("descricao")]
         [Required]
         [MaxLength(10)]
-        public String Description {  get; set; }
+        public String Description { get; set; }
+
+        public int GetAmountForBalance()
+        {
+            return (Type == "c" ? Math.Abs(Amount) : Math.Abs(Amount) * -1);
+        }
     }
 }
