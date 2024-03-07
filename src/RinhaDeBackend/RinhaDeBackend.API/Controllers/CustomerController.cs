@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Memory;
 using RinhaDeBackend.API.Models;
 using RinhaDeBackend.API.Services;
 
@@ -8,14 +9,14 @@ namespace RinhaDeBackend.API.Controllers
     [Route("clientes/{id}")]
     public class CustomerController : ControllerBase
     {
-        private readonly ILogger<CustomerController> _logger;
         private readonly ICustomerService _customerService;
+        private readonly IMemoryCache _memoryCache;
         private readonly DiagnosticsConfig _diagnosticsConfig;
 
-        public CustomerController(ILogger<CustomerController> logger, ICustomerService customerService, DiagnosticsConfig diagnosticsConfig)
+        public CustomerController(ICustomerService customerService, IMemoryCache memoryCache, DiagnosticsConfig diagnosticsConfig)
         {
-            _logger = logger;
             _customerService = customerService;
+            _memoryCache = memoryCache;
             _diagnosticsConfig = diagnosticsConfig;
         }
 
@@ -26,8 +27,7 @@ namespace RinhaDeBackend.API.Controllers
             using var activity = _diagnosticsConfig.Source.StartActivity("CustomerController.GetBalance()");
 #endif
 
-            //TODO: Remove
-            if (id < 1 || id > 5)
+            if (_memoryCache.TryGetValue(string.Format(CacheConstants.CUSTOMER_EXISTS, id), out bool userExists) && !userExists)
                 return NotFound();
 
             var serviceResult = await _customerService.GetBalanceDetailsByCustomerIdAsync(id);
@@ -47,8 +47,7 @@ namespace RinhaDeBackend.API.Controllers
             if (!ModelState.IsValid)
                 return UnprocessableEntity();
 
-            //TODO: Remove
-            if (id < 1 || id > 5)
+            if (_memoryCache.TryGetValue(string.Format(CacheConstants.CUSTOMER_EXISTS, id), out bool userExists) && !userExists)
                 return NotFound();
 
             var serviceResult = await _customerService.NewBankTransactionAsync(id, newTransactionRequest);
