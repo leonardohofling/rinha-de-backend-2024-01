@@ -2,7 +2,8 @@ CREATE UNLOGGED TABLE customers (
 	customer_id SERIAL PRIMARY KEY,
 	customer_name VARCHAR(50) NOT NULL,
 	customer_limit INTEGER NOT NULL,
-	customer_balance INTEGER NOT NULL
+	customer_balance INTEGER NOT NULL,
+	CONSTRAINT insufficient_limit_check CHECK (customer_balance >= -customer_limit)
 );
 
 CREATE UNLOGGED TABLE transactions (
